@@ -241,37 +241,38 @@
     async function checkActive(catalog) {
         let children = catalog.children;
         let elem = catalog?.firstElementChild;
-        if (elem && elem.classList.contains("uncomplete") && !elem.innerText.includes("测试")) {
+        // 展开章节(移除uncomplete和测试过滤)
+        if (elem) {
             let iElement = elem.getElementsByTagName("i")[0];
             if (iElement && iElement.classList.contains("icon-xiangxia")) {
                 elem.click();
             }
             await sleep(500);
-            for (let i = 1; i < children.length; i++) {
-                // 修复：遍历资源列表中所有资源，找到第一个未完成视频启动连播（跳过测验）
-                if (children[i].tagName === "DIV") {
-                    const resourceListDiv = children[i];
-                    const resources = Array.from(resourceListDiv.querySelectorAll(':scope > .basic'));
-                    for (let r of resources) {
-                        if (r.classList.contains('complete')) continue;
-                        let nameSpan = r.querySelector('.tag-source-name');
-                        let nameText = nameSpan ? (nameSpan.innerText || '') : '';
-                        if (nameSpan && nameSpan.classList.contains('taskpoint') && nameText.includes('测验')) {
-                            continue;
-                        }
-                        if (r.querySelector('.icon-video') || /视频/.test(nameText)) {
-                            r.click();
-                            clearShader();
-                            await waitForVideoCompletion();
-                            while (playNextVideoInChapter()) {
-                                await waitForVideoCompletion();
-                            }
-                            break;
-                        }
+        }
+        
+        for (let i = 1; i < children.length; i++) {
+            if (children[i].tagName === "DIV") {
+                const resourceListDiv = children[i];
+                const resources = Array.from(resourceListDiv.querySelectorAll(':scope > .basic'));
+                for (let r of resources) {
+                    if (r.classList.contains('complete')) continue;
+                    let nameSpan = r.querySelector('.tag-source-name');
+                    let nameText = nameSpan ? (nameSpan.innerText || '') : '';
+                    if (nameSpan && nameSpan.classList.contains('taskpoint') && nameText.includes('测验')) {
+                        continue;
                     }
-                } else if (children[i].tagName === "UL") {
-                    await searchUncomplete(children[i]);
+                    if (r.querySelector('.icon-video') || /视频/.test(nameText)) {
+                        r.click();
+                        clearShader();
+                        await waitForVideoCompletion();
+                        while (playNextVideoInChapter()) {
+                            await waitForVideoCompletion();
+                        }
+                        return;
+                    }
                 }
+            } else if (children[i].tagName === "UL") {
+                await searchUncomplete(children[i]);
             }
         }
     }
