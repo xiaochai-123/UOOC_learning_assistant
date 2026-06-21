@@ -114,10 +114,10 @@
     // ===================== 自动连播 =====================
     let autoNext = CFG.autoNextDefault;
     let advancing = false;
-    let lastPlayedId = null;
+    let lastPlayedId = null, lastSectionId = null, lastChapterId = null;
 
     function playVideoSource(courseId, chapterId, sectionId, sourceId, title) {
-        lastPlayedId = String(sourceId);
+        lastPlayedId = String(sourceId); lastSectionId = String(sectionId); lastChapterId = String(chapterId);
         location.hash = `#/${courseId}/${chapterId}/${sectionId}/${sourceId}/section`;
         log('▶ 连播 → ' + (title || sourceId));
         // 切换后视频元素会重建，连点几次确保起播
@@ -131,9 +131,12 @@
         const leaves = flattenLeaves();
         if (!leaves.length) return { error: '无目录(chapterList)' };
 
+        // 当前位置：优先 [uooc-video]；若被附件/其它视图顶掉(null)，用最近一次连播位置兜底，避免回到课程开头死循环
+        const curId = cur ? String(cur.id) : lastPlayedId;
+        const curSectionId = cur ? cur.catalog_id : lastSectionId;
         let startIdx = 0;
-        if (cur && cur.catalog_id != null) {
-            const i = leaves.findIndex(l => String(l.section.id) === String(cur.catalog_id));
+        if (curSectionId != null) {
+            const i = leaves.findIndex(l => String(l.section.id) === String(curSectionId));
             if (i >= 0) startIdx = i;
         }
         const end = Math.min(leaves.length, startIdx + CFG.lookaheadMax);
@@ -143,11 +146,11 @@
             if (data.code === 600) return { locked: true, msg: data.msg, section: leaf.section };
             if (data.code !== 1 || !Array.isArray(data.data)) continue;
             let pool = data.data;
-            if (i === startIdx && cur) {
-                const ci = pool.findIndex(s => String(s.id) === String(cur.id));
+            if (i === startIdx && curId != null) {
+                const ci = pool.findIndex(s => String(s.id) === String(curId));
                 if (ci >= 0) pool = pool.slice(ci + 1); // 当前节里只看当前视频之后的
             }
-            const vid = pool.find(s => isVideoSrc(s) && (!CFG.skipFinished || s.finished != 1));
+            const vid = pool.find(s => isVideoSrc(s) && (!CFG.skipFinished || s.finished != 1) && String(s.id) !== String(lastPlayedId));
             if (vid) return { video: vid, courseId, chapterId: leaf.chapterId, sectionId: leaf.section.id };
             await sleep(60); // 轻微节流
         }
